@@ -128,6 +128,7 @@
 		ramoops@c5200000 {
 			compatible = "ramoops";
 			reg = <0x0 0xc5200000 0x0 0x200000>;
+			no-map;
 			record-size = <0x80000>;
 			console-size = <0x100000>;
 			pmsg-size = <0x80000>;

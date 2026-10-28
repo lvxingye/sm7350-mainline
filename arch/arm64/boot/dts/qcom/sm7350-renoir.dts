@@ -177,15 +177,6 @@
 	};
 };
 
-&tlmm {
-	ufs_reset_default: ufs-reset-state {
-		pins = "gpio204";
-		function = "gpio";
-		drive-strength = <2>;
-		bias-disable;
-	};
-};
-
 &uart5 {
 	status = "okay";
 };
@@ -198,8 +189,6 @@
 
 &ufs_mem_hc {
 	reset-gpios = <&tlmm 204 GPIO_ACTIVE_LOW>;
-	pinctrl-0 = <&ufs_reset_default>;
-	pinctrl-names = "default";
 
 	vcc-supply = <&vreg_l7b_2p96>;
 	vcc-max-microamp = <800000>;
