@@ -46,6 +46,7 @@ properties:
               - qcom,sa8775p-ufshc
               - qcom,sc7180-ufshc
               - qcom,sc7280-ufshc
+              - qcom,sm7350-ufshc
               - qcom,sc8180x-ufshc
               - qcom,sc8280xp-ufshc
               - qcom,sm8250-ufshc

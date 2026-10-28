@@ -1091,6 +1091,11 @@ properties:
 
       - items:
           - enum:
+              - xiaomi,renoir
+          - const: qcom,sm7350
+
+      - items:
+          - enum:
               - microsoft,surface-duo
               - qcom,sm8150-hdk
               - qcom,sm8150-mtp

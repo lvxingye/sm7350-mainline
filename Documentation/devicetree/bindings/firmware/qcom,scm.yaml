@@ -77,6 +77,7 @@ properties:
           - qcom,scm-sm8150
           - qcom,scm-sm8250
           - qcom,scm-sm8350
+          - qcom,scm-sm7350
           - qcom,scm-sm8450
           - qcom,scm-sm8550
           - qcom,scm-sm8650
