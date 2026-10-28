@@ -1090,6 +1090,13 @@ properties:
           - const: qcom,sm7325
 
       - items:
+          - const: qcom,shima-idp
+          - const: qcom,shima
+          - const: qcom,idp
+          - const: xiaomi,renoir
+          - const: qcom,sm7350
+
+      - items:
           - enum:
               - xiaomi,renoir
           - const: qcom,sm7350
@@ -1358,6 +1365,7 @@ allOf:
               - qcom,sm6350
               - qcom,sm7125
               - qcom,sm7225
+              - qcom,sm7350
               - qcom,sm8150
               - qcom,sm8250
     then:

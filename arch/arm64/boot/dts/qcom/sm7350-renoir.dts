@@ -21,7 +21,10 @@
 
 / {
 	model = "Xiaomi Mi 11 Lite 5G";
-	compatible = "xiaomi,renoir", "qcom,sm7350";
+	compatible = "qcom,shima-idp", "qcom,shima", "qcom,idp",
+		     "xiaomi,renoir", "qcom,sm7350";
+	qcom,board-id = <0x22 0>;
+	qcom,msm-id = <450 0x10000>;
 	chassis-type = "handset";
 
 	aliases {
@@ -208,10 +211,12 @@
 };
 
 &usb_1 {
+	qcom,select-utmi-as-pipe-clk;
 	status = "okay";
 };
 
 &usb_1_dwc3 {
+	dr_mode = "peripheral";
 	maximum-speed = "high-speed";
 	phys = <&usb_1_hsphy>;
 	phy-names = "usb2-phy";

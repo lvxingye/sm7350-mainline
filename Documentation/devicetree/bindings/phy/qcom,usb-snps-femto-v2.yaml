@@ -34,6 +34,7 @@ properties:
               - qcom,sm8350-usb-hs-phy
               - qcom,sm8450-usb-hs-phy
           - const: qcom,usb-snps-hs-7nm-phy
+      - const: qcom,usb-snps-femto-v2-phy
 
   reg:
     maxItems: 1

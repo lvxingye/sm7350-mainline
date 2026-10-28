@@ -31,7 +31,7 @@
 	memory@80000000 {
 		device_type = "memory";
 		/* We expect the bootloader to fill in the size */
-		reg = <0x0 0x80000000 0x0 0x0>;
+		reg = <0x0 0x80000000 0x1 0x0>;
 	};
 
 	reserved-memory {
@@ -123,6 +123,14 @@
 		splash_memory: splash@e1000000 {
 			reg = <0x0 0xe1000000 0x0 0x2300000>;
 			no-map;
+		};
+
+		ramoops@c5200000 {
+			compatible = "ramoops";
+			reg = <0x0 0xc5200000 0x0 0x200000>;
+			record-size = <0x80000>;
+			console-size = <0x100000>;
+			pmsg-size = <0x80000>;
 		};
 	};
 
@@ -409,6 +417,8 @@
 			reg = <0 0x17c10000 0 0x1000>;
 			clocks = <&sleep_clk>;
 			interrupts = <GIC_SPI 0 IRQ_TYPE_EDGE_RISING>;
+			/* Owned by the firmware/ABL; MMIO access from Linux faults. */
+			status = "reserved";
 		};
 
 		timer@17c20000 {
@@ -683,7 +693,7 @@
 		};
 
 		usb_1_hsphy: phy@88e3000 {
-			compatible = "qcom,sm8350-usb-hs-phy", "qcom,usb-snps-hs-7nm-phy";
+			compatible = "qcom,usb-snps-femto-v2-phy";
 			reg = <0 0x088e3000 0 0x1c0>;
 			clocks = <&rpmhcc RPMH_CXO_CLK>;
 			clock-names = "ref";
