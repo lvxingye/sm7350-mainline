@@ -248,6 +248,17 @@
 #define SC7280_LCX	7
 #define SC7280_MSS	8
 
+/* SM7350 Power Domain Indexes */
+#define SM7350_CX	0
+#define SM7350_CX_AO	1
+#define SM7350_EBI	2
+#define SM7350_GFX	3
+#define SM7350_MX	4
+#define SM7350_MX_AO	5
+#define SM7350_LMX	6
+#define SM7350_LCX	7
+#define SM7350_MSS	8
+
 /* SC8180X Power Domain Indexes */
 #define SC8180X_CX	0
 #define SC8180X_CX_AO	1
