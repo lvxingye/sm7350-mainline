@@ -1443,6 +1443,16 @@ config SM_GCC_8250
 	  Say Y if you want to use peripheral devices such as UART,
 	  SPI, I2C, USB, SD/UFS, PCIe etc.
 
+config SM_GCC_7350
+	tristate "SM7350 Global Clock Controller"
+	depends on ARM64 || COMPILE_TEST
+	select QCOM_GDSC
+	help
+	  Support for the global clock controller on SM7350 devices.
+	  This controller provides the clocks, resets and power domains
+	  used by the UART, SPI, I2C, USB, UFS and PCIe peripherals.
+	  Say Y if you want to use these peripherals on an SM7350 board.
+
 config SM_GCC_8350
 	tristate "SM8350 Global Clock Controller"
 	depends on ARM64 || COMPILE_TEST
