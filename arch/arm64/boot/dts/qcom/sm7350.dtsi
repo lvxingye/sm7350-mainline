@@ -704,7 +704,7 @@
 		};
 
 		pcie0: pcie@1c00000 {
-			compatible = "qcom,pcie-sm8350";
+			compatible = "qcom,pcie-sm7350";
 			reg = <0 0x01c00000 0 0x3000>,
 			      <0 0x60000000 0 0xf1d>,
 			      <0 0x60000f20 0 0xa8>,
