@@ -188,8 +188,9 @@
 #define GCC_VIDEO_AXI0_CLK_ARES					15
 #define GCC_VIDEO_AXI1_CLK_ARES					16
 
-#endif
-
 /* GCC power domains */
 #define GCC_UFS_PHY_GDSC					0
 #define GCC_USB30_PRIM_GDSC				1
+#define GCC_PCIE_0_GDSC					2
+
+#endif
