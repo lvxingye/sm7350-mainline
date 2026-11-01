@@ -443,8 +443,10 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -smp 4 -m 2048 \
   `/sys/class/usb_role/a600000.usb-role-switch`。
 - 内核已启用 XHCI、HID、hub、storage 等 host 侧驱动，host 数据通路在
   控制器层面是通的。
-- 但 Type-C CC 检测和 VBUS 输出不可用：renoir 的 PM8350B SMB5
-  charger/Type-C 块不在 AP 的 SPMI 地址映射中。
+- 但 AP 侧无法控制 Type-C CC 检测和 VBUS 输出：renoir 的 PM8350B
+  SMB5 charger/Type-C 块不在 AP 的 SPMI 地址映射中。注意这是**访问权限
+  问题，不是硬件能力问题**：PM8350B 本身支持 USB_IN 反向 boost
+  （4.8–5.5 V、额定 1.5 A），但需要 ADSP charger 固件去配置。
 
 探针方法与证据（只读，未写任何 PMIC 寄存器）：
 
@@ -457,6 +459,21 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -smp 4 -m 2048 \
   且没有任何 SID 暴露 SMB5 的 `0x1000`–`0x1500` 块。
 - 因此这不是“补一个 typec 驱动/DTS 节点”能解决的问题，而是 AP 的
   SPMI 映射/固件所有权边界。
+
+与 PM8350B Data Sheet Rev H（`80-PT205-1`）的对照：
+
+- 该 PDF 是 76 页电气/封装/pad 数据手册，**没有寄存器映射表**，也没有
+  `0x1500` 等地址；只注明部分功能需 IC software 使能、见 software
+  release notes。内核的寄存器偏移来自 Qualcomm register spec/软件
+  release notes 和 GPL 厂商驱动，而不是这份 PDF。
+- PDF 可确认：CC1_ID/CC2/CC_OUT/SBU1/SBU2/VDD_VCONN 引脚；Source Rp
+  typ 80/180/330 µA（与内核 `0x1552` 的 0/1/2 编码一致）；vSafe0V
+  0–0.8 V、vSafe5V 4.75–5.5 V（对应 `0x150A` 状态位）；USB_IN 在 OTG
+  时作为输出；reverse boost 4.8–5.5 V、额定 1.5 A；同时无线充+OTG 或
+  USB 充+反向无线充才需要外部 5 V boost。
+- 因此如果将来做 AP 直连 OTG，PM8350B 的 OTG 限流应限制在 1.5 A；
+  mainline `qcom_usb_vbus-regulator` 的 3 A 档主要对应 PM8150B 等更高
+  规格的 PMIC。
 
 下游实现：
 
@@ -475,7 +492,8 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -smp 4 -m 2048 \
 - 自动 OTG（插线检测、role swap、VBUS 供电）当前不可实现；需要先移植
   ADSP charger 固件路径，或完成上述 SPMI 映射方向的硬件验证。
 - 手动 host 模式可以通过 role switch 工作，但：
-  - 手机不输出 VBUS；
+  - 主线 AP 无法使能 PM8350B 的 reverse boost（硬件支持 1.5 A，但需
+    ADSP 固件），所以手机不会自己输出 VBUS；
   - 只能接自供电 dock/设备，或外部供电的 hub/OTG 适配器；
   - 普通 bus-powered USB 鼠标/键盘（被动 OTG 转接线）不工作；
   - 切换 host 会断开 USB gadget，SSH 和 ttyGS0 串口同时消失。
