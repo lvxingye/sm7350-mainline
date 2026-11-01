@@ -397,6 +397,10 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -smp 4 -m 2048 \
 
 ## 11. 已知限制、未完成项与固件依赖
 
+> 注意：11.1–11.4 记录的是最初 build/QEMU 基线时的状态。2026-10 以后
+> 的真机 bring-up（UFS、USB gadget、simpledrm、GNOME）以及 2026-11-01
+> 的 USB host/OTG 探测见 11.5 和工作记录。
+
 ### 11.1 明确未验证
 
 - 所有 renoir 硬件功能均未在真机验证。
@@ -429,6 +433,62 @@ qemu-system-aarch64 -M virt -cpu cortex-a72 -smp 4 -m 2048 \
   已 built-in，COMBO PHY 仍为 module。
 - CPU idle states 未移植，功耗会高于 Android/vendor 内核。
 - 没有提供 `renoir_defconfig`，只提供片段，原因见第 8 节。
+
+### 11.5 USB host/OTG 真机探测与限制（2026-11-01）
+
+当前状态：
+
+- DWC3/USB2 HS PHY 已在真机上工作，gadget（CDC-ACM + RNDIS）可用；
+  DWC3 已注册 role switch：
+  `/sys/class/usb_role/a600000.usb-role-switch`。
+- 内核已启用 XHCI、HID、hub、storage 等 host 侧驱动，host 数据通路在
+  控制器层面是通的。
+- 但 Type-C CC 检测和 VBUS 输出不可用：renoir 的 PM8350B SMB5
+  charger/Type-C 块不在 AP 的 SPMI 地址映射中。
+
+探针方法与证据（只读，未写任何 PMIC 寄存器）：
+
+- 通过临时 out-of-tree module 在 PM8350B（SPMI `0-03`）上按 block
+  读取 type/subtype。AP 可见的块只有 `0x1600` MISC、`0x1700` PDPHY、
+  `0x1800`/`0x1900` PBS 等；`0x1000` CHGR、`0x1100` DCDC、
+  `0x1200` BATIF、`0x1300` USBIN、`0x1500` TYPEC 全部返回
+  `-ENODEV`。
+- 对 SPMI SID 0–15 的完整 block 扫描确认只有 SID 0/1/2/3/5 存在，
+  且没有任何 SID 暴露 SMB5 的 `0x1000`–`0x1500` 块。
+- 因此这不是“补一个 typec 驱动/DTS 节点”能解决的问题，而是 AP 的
+  SPMI 映射/固件所有权边界。
+
+下游实现：
+
+- 下游 renoir DTS 使用 `qcom,pmic_glink`，channel
+  `PMIC_RTR_ADSP_APPS`，protection-domain
+  `tms/servreg`, `msm/adsp/charger_pd`，并通过 `qcom,ucsi-glink`
+  暴露 Type-C/UCSI；charger 固件运行在 ADSP。
+- 主线的 `pmic_glink` + `ucsi_glink` 驱动存在，但需要 ADSP
+  remoteproc（`qcom_q6v5_pas`）、SMEM/SMP2P/GLINK/PDR 以及 ADSP
+  固件；本仓库尚未移植 ADSP，因此不能用 UCSI 自动完成 CC/role/VBUS。
+- 另一个未验证的方向是检查 PMIC arbiter 的 secondary SPMI bus/APID
+  mapping；在只有 USB 串口/网络可用的远程条件下不适合直接试验。
+
+结论与临时方案：
+
+- 自动 OTG（插线检测、role swap、VBUS 供电）当前不可实现；需要先移植
+  ADSP charger 固件路径，或完成上述 SPMI 映射方向的硬件验证。
+- 手动 host 模式可以通过 role switch 工作，但：
+  - 手机不输出 VBUS；
+  - 只能接自供电 dock/设备，或外部供电的 hub/OTG 适配器；
+  - 普通 bus-powered USB 鼠标/键盘（被动 OTG 转接线）不工作；
+  - 切换 host 会断开 USB gadget，SSH 和 ttyGS0 串口同时消失。
+- 手机侧已提供 `/usr/local/sbin/renoir-usb-role`：
+  `status` / `host [seconds]` / `device`。`host` 默认 60 秒后由
+  systemd 瞬时 guard service（单调时钟 sleep，不依赖 RTC）自动回退，
+  并重新绑定 UDC、恢复 DHCP；`host 0` 为永久模式，仅建议在能物理接触
+  手机时使用。
+
+电源注意：
+
+- 无人值守期间手机出现过一次干净的 `reboot: Power down`（pstore 记录），
+  更像电池/供电不足而非内核崩溃；host 测试前应确认供电，避免再次失联。
 
 ## 12. 引导路径对比与发行版启动指南
 
