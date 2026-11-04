@@ -1039,6 +1039,34 @@ static const struct adreno_info a6xx_gpus[] = {
 			.prim_fifo_threshold = 0x00300200,
 		},
 	}, {
+		/*
+		 * Adreno 642 (SM7350/Shima).  It is an A660-family GPU with a
+		 * lower clock ceiling and a different chip-id.  The GMU
+		 * firmware wants the target version in the top nibble of the
+		 * chip-id word, as on downstream.
+		 */
+		.chip_ids = ADRENO_CHIP_IDS(0x06060010),
+		.family = ADRENO_6XX_GEN4,
+		.revn = 660,
+		.fw = {
+			[ADRENO_FW_SQE] = "a660_sqe.fw",
+			[ADRENO_FW_GMU] = "a660_gmu.bin",
+		},
+		.gmem = SZ_1M + SZ_512K,
+		.inactive_period = DRM_MSM_INACTIVE_PERIOD,
+		.quirks = ADRENO_QUIRK_HAS_CACHED_COHERENT |
+			ADRENO_QUIRK_HAS_HW_APRIV,
+		.funcs = &a6xx_gpu_funcs,
+		.zapfw = "a660_zap.mdt",
+		.a6xx = &(const struct a6xx_info) {
+			.hwcg = a660_hwcg,
+			.protect = &a660_protect,
+			.gbif_cx = a640_gbif,
+			.gmu_cgc_mode = 0x00020000,
+			.prim_fifo_threshold = 0x00300200,
+			.gmu_chipid = 0x16060000,
+		},
+	}, {
 		.chip_ids = ADRENO_CHIP_IDS(0x06060300),
 		.family = ADRENO_6XX_GEN4,
 		.fw = {

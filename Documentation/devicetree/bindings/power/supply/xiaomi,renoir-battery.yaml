@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/supply/xiaomi,renoir-battery.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Xiaomi renoir voltage-based battery monitor
+
+maintainers:
+  - Claude Agent <claude-agent@localhost>
+
+description:
+  A simple battery monitor for the Xiaomi renoir (SM7350).  It reads the
+  PM8350B VBAT_SNS channel through the PMK8350 VADC and exposes a coarse
+  voltage/OCV-based capacity through the power_supply class.  It is not a
+  coulomb-counting fuel gauge.
+
+properties:
+  compatible:
+    const: xiaomi,renoir-battery
+
+  io-channels:
+    maxItems: 1
+
+  io-channel-names:
+    const: voltage
+
+required:
+  - compatible
+  - io-channels
+  - io-channel-names
+
+additionalProperties: false
+
+examples:
+  - |
+    battery {
+        compatible = "xiaomi,renoir-battery";
+        io-channels = <&pmk8350_vadc 0x38f>;
+        io-channel-names = "voltage";
+    };

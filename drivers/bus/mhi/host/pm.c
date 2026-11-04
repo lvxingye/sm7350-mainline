@@ -17,6 +17,11 @@
 #include "internal.h"
 #include "trace.h"
 
+static bool skip_powerdown_on_timeout;
+module_param(skip_powerdown_on_timeout, bool, 0444);
+MODULE_PARM_DESC(skip_powerdown_on_timeout,
+		 "Skip MHI power-down after a readiness timeout for bring-up debugging");
+
 /*
  * Not all MHI state transitions are synchronous. Transitions like Linkdown,
  * SYS_ERR, and shutdown can happen anytime asynchronously. This function will
@@ -1285,13 +1290,20 @@ int mhi_sync_power_up(struct mhi_controller *mhi_cntrl)
 	/* Some devices need more time to set ready during power up */
 	timeout_ms = mhi_cntrl->ready_timeout_ms ?
 		mhi_cntrl->ready_timeout_ms : mhi_cntrl->timeout_ms;
+	dev_info(&mhi_cntrl->mhi_dev->dev,
+		 "sync power up: async setup done, waiting %u ms\n", timeout_ms);
+
 	wait_event_timeout(mhi_cntrl->state_event,
 			   MHI_IN_MISSION_MODE(mhi_cntrl->ee) ||
 			   MHI_PM_FATAL_ERROR(mhi_cntrl->pm_state),
 			   msecs_to_jiffies(timeout_ms));
 
 	ret = (MHI_IN_MISSION_MODE(mhi_cntrl->ee)) ? 0 : -ETIMEDOUT;
-	if (ret)
+	dev_info(&mhi_cntrl->mhi_dev->dev,
+		 "sync power up: wait done ret=%d ee=%d pm_state=%d skip_powerdown=%d\n",
+		 ret, mhi_cntrl->ee, mhi_cntrl->pm_state,
+		 skip_powerdown_on_timeout);
+	if (ret && !skip_powerdown_on_timeout)
 		mhi_power_down(mhi_cntrl, false);
 
 	return ret;

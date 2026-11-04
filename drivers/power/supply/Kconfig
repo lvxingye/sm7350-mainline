@@ -1202,4 +1202,17 @@ config MACSMC_POWER
 
 	  Say Y or M here if you have an Apple Silicon based Mac.
 
+config RENOIR_BATTERY
+	tristate "Xiaomi renoir voltage-based battery monitor"
+	depends on IIO
+	help
+	  Simple battery monitor for Xiaomi renoir (SM7350).  It reads the
+	  PM8350B VBAT_SNS channel through the PMK8350 VADC and exposes a
+	  coarse voltage/OCV-based capacity through the power_supply class.
+
+	  This is not a coulomb-counting fuel gauge; charger status and
+	  accurate runtime prediction require the Android PMIC GLINK/ADSP
+	  charger path.  Say M here unless the driver is required during
+	  early boot.
+
 endif # POWER_SUPPLY

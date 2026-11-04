@@ -73,6 +73,8 @@ properties:
   vddpe-3v3-supply:
     description: 3.3V supply for the PCIe endpoint slot
 
+  msi-parent: true
+
 required:
   - compatible
   - reg

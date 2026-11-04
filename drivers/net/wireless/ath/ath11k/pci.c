@@ -42,6 +42,40 @@ static const struct pci_device_id ath11k_pci_id_table[] = {
 
 MODULE_DEVICE_TABLE(pci, ath11k_pci_id_table);
 
+static bool force_one_msi;
+module_param(force_one_msi, bool, 0444);
+MODULE_PARM_DESC(force_one_msi,
+		 "Force one MSI vector instead of the multi-vector config");
+
+static bool skip_soc_global_reset;
+module_param(skip_soc_global_reset, bool, 0444);
+MODULE_PARM_DESC(skip_soc_global_reset,
+		 "Skip the PCIe SOC global reset for bring-up debugging");
+
+static bool skip_msi_enable;
+module_param(skip_msi_enable, bool, 0444);
+MODULE_PARM_DESC(skip_msi_enable,
+		 "Keep endpoint MSI disabled for interrupt-path debugging");
+
+static bool use_legacy_intx;
+module_param(use_legacy_intx, bool, 0444);
+MODULE_PARM_DESC(use_legacy_intx,
+		 "Use legacy INTx instead of MSI for bring-up debugging");
+
+static bool skip_sw_reset;
+module_param(skip_sw_reset, bool, 0444);
+MODULE_PARM_DESC(skip_sw_reset,
+		 "Skip the whole WLAN software reset sequence for bring-up debugging");
+
+static int msi_data_offset;
+module_param(msi_data_offset, int, 0644);
+MODULE_PARM_DESC(msi_data_offset,
+		 "Offset applied to the PCI MSI data register before firmware boot");
+
+static int dma_mask_bits = ATH11K_PCI_DMA_MASK;
+module_param(dma_mask_bits, int, 0444);
+MODULE_PARM_DESC(dma_mask_bits, "PCI streaming DMA mask width for bring-up");
+
 static int ath11k_pci_bus_wake_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
@@ -379,6 +413,11 @@ static void ath11k_pci_force_wake(struct ath11k_base *ab)
 
 static void ath11k_pci_sw_reset(struct ath11k_base *ab, bool power_on)
 {
+	if (skip_sw_reset) {
+		ath11k_dbg(ab, ATH11K_DBG_PCI, "sw_reset skipped entirely\n");
+		return;
+	}
+
 	mdelay(100);
 
 	if (power_on) {
@@ -391,8 +430,14 @@ static void ath11k_pci_sw_reset(struct ath11k_base *ab, bool power_on)
 
 	ath11k_mhi_clear_vector(ab);
 	ath11k_pci_clear_dbg_registers(ab);
-	ath11k_pci_soc_global_reset(ab);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "sw_reset before soc global reset\n");
+	if (skip_soc_global_reset)
+		ath11k_dbg(ab, ATH11K_DBG_PCI, "sw_reset soc global reset skipped\n");
+	else
+		ath11k_pci_soc_global_reset(ab);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "sw_reset after soc global reset\n");
 	ath11k_mhi_set_mhictrl_reset(ab);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "sw_reset done\n");
 }
 
 static void ath11k_pci_init_qmi_ce_config(struct ath11k_base *ab)
@@ -444,17 +489,41 @@ static int ath11k_pci_alloc_msi(struct ath11k_pci *ab_pci)
 	int num_vectors;
 	int ret;
 
+	ath11k_info(ab, "msi domain %ps\n", dev_get_msi_domain(&pci_dev->dev));
+
+	if (use_legacy_intx) {
+		num_vectors = pci_alloc_irq_vectors(pci_dev, 1, 1,
+						    PCI_IRQ_INTX);
+		if (num_vectors < 0) {
+			ath11k_err(ab, "failed to allocate legacy INTx: %d\n",
+				   num_vectors);
+			return -EINVAL;
+		}
+		clear_bit(ATH11K_FLAG_MULTI_MSI_VECTORS, &ab->dev_flags);
+		ab->pci.msi.config = &msi_config_one_msi;
+		ab->pci.msi.ep_base_data = 0;
+		ab->pci.msi.addr_lo = 0;
+		ab->pci.msi.addr_hi = 0;
+		ath11k_info(ab, "using legacy INTx irq %d\n",
+			    pci_irq_vector(pci_dev, 0));
+		return 0;
+	}
+
 	num_vectors = pci_alloc_irq_vectors(pci_dev,
-					    msi_config->total_vectors,
-					    msi_config->total_vectors,
+					    force_one_msi ? 1 : msi_config->total_vectors,
+					    force_one_msi ? 1 : msi_config->total_vectors,
 					    PCI_IRQ_MSI);
-	if (num_vectors == msi_config->total_vectors) {
+	if (num_vectors == msi_config->total_vectors && !force_one_msi) {
 		set_bit(ATH11K_FLAG_MULTI_MSI_VECTORS, &ab->dev_flags);
 	} else {
-		num_vectors = pci_alloc_irq_vectors(ab_pci->pdev,
-						    1,
-						    1,
-						    PCI_IRQ_MSI);
+		if (force_one_msi && num_vectors == 1) {
+			/* Single-vector bring-up path. */
+		} else {
+			num_vectors = pci_alloc_irq_vectors(ab_pci->pdev,
+							    1,
+							    1,
+							    PCI_IRQ_MSI);
+		}
 		if (num_vectors < 0) {
 			ret = -EINVAL;
 			goto reset_msi_config;
@@ -487,6 +556,9 @@ static int ath11k_pci_alloc_msi(struct ath11k_pci *ab_pci)
 	}
 
 	ath11k_dbg(ab, ATH11K_DBG_PCI, "msi base data is %d\n", ab->pci.msi.ep_base_data);
+	ath11k_info(ab, "MSI addr %08x:%08x data %d msi_cap 0x%x\n",
+		    ab->pci.msi.addr_hi, ab->pci.msi.addr_lo,
+		    ab->pci.msi.ep_base_data, pci_dev->msi_cap);
 
 	return 0;
 
@@ -505,6 +577,13 @@ static void ath11k_pci_free_msi(struct ath11k_pci *ab_pci)
 static int ath11k_pci_config_msi_data(struct ath11k_pci *ab_pci)
 {
 	struct msi_desc *msi_desc;
+
+	if (use_legacy_intx) {
+		ab_pci->ab->pci.msi.ep_base_data = 0;
+		ath11k_dbg(ab_pci->ab, ATH11K_DBG_PCI,
+			   "using legacy INTx, no MSI data\n");
+		return 0;
+	}
 
 	msi_desc = irq_get_msi_desc(ab_pci->pdev->irq);
 	if (!msi_desc) {
@@ -553,15 +632,14 @@ static int ath11k_pci_claim(struct ath11k_pci *ab_pci, struct pci_dev *pdev)
 		goto disable_device;
 	}
 
-	ret = dma_set_mask(&pdev->dev,
-			   DMA_BIT_MASK(ATH11K_PCI_DMA_MASK));
+	ret = dma_set_mask(&pdev->dev, DMA_BIT_MASK(dma_mask_bits));
 	if (ret) {
 		ath11k_err(ab, "failed to set pci dma mask to %d: %d\n",
-			   ATH11K_PCI_DMA_MASK, ret);
+			   dma_mask_bits, ret);
 		goto release_region;
 	}
 
-	ab_pci->dma_mask = DMA_BIT_MASK(ATH11K_PCI_DMA_MASK);
+	ab_pci->dma_mask = DMA_BIT_MASK(dma_mask_bits);
 
 	ret = dma_set_coherent_mask(&pdev->dev,
 				    DMA_BIT_MASK(ATH11K_PCI_COHERENT_DMA_MASK));
@@ -815,6 +893,24 @@ static void ath11k_pci_coredump_download(struct ath11k_base *ab)
 }
 #endif
 
+static void ath11k_pci_adjust_msi_data(struct ath11k_pci *ab_pci)
+{
+	struct pci_dev *pdev = ab_pci->pdev;
+	u16 flags, data;
+	int pos;
+
+	if (!msi_data_offset)
+		return;
+
+	pci_read_config_word(pdev, pdev->msi_cap + PCI_MSI_FLAGS, &flags);
+	pos = (flags & PCI_MSI_FLAGS_64BIT) ? PCI_MSI_DATA_64 : PCI_MSI_DATA_32;
+	pci_read_config_word(pdev, pdev->msi_cap + pos, &data);
+	ath11k_info(ab_pci->ab, "adjusting MSI data %u by %d\n",
+		    data, msi_data_offset);
+	pci_write_config_word(pdev, pdev->msi_cap + pos,
+			      data + msi_data_offset);
+}
+
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
@@ -823,19 +919,33 @@ static int ath11k_pci_power_up(struct ath11k_base *ab)
 	ab_pci->register_window = 0;
 	clear_bit(ATH11K_FLAG_DEVICE_INIT_DONE, &ab->dev_flags);
 	ath11k_pci_sw_reset(ab_pci->ab, true);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "power_up after sw_reset\n");
 
 	/* Disable ASPM during firmware download due to problems switching
 	 * to AMSS state.
 	 */
 	ath11k_pci_aspm_disable(ab_pci);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "power_up after aspm_disable\n");
 
-	ath11k_pci_msi_enable(ab_pci);
+	if (skip_msi_enable) {
+		ath11k_pci_msi_disable(ab_pci);
+		ath11k_dbg(ab, ATH11K_DBG_PCI,
+			   "power_up msi_enable skipped and disabled\n");
+	} else if (use_legacy_intx) {
+		ath11k_dbg(ab, ATH11K_DBG_PCI, "power_up legacy intx\n");
+	} else {
+		ath11k_pci_msi_enable(ab_pci);
+	}
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "power_up after msi_enable\n");
+
+	ath11k_pci_adjust_msi_data(ab_pci);
 
 	ret = ath11k_mhi_start(ab_pci);
 	if (ret) {
 		ath11k_err(ab, "failed to start mhi: %d\n", ret);
 		return ret;
 	}
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "power_up after mhi_start\n");
 
 	if (ab->hw_params.static_window_map)
 		ath11k_pci_select_static_window(ab_pci);
@@ -852,7 +962,8 @@ static void ath11k_pci_power_down(struct ath11k_base *ab, bool is_suspend)
 
 	ath11k_pci_force_wake(ab_pci->ab);
 
-	ath11k_pci_msi_disable(ab_pci);
+	if (!use_legacy_intx)
+		ath11k_pci_msi_disable(ab_pci);
 
 	ath11k_mhi_stop(ab_pci, is_suspend);
 	clear_bit(ATH11K_FLAG_DEVICE_INIT_DONE, &ab->dev_flags);
@@ -1137,11 +1248,13 @@ unsupported_wcn6855_soc:
 		goto err_free_irq;
 	}
 
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "probe before core_init\n");
 	ret = ath11k_core_init(ab);
 	if (ret) {
 		ath11k_err(ab, "failed to init core: %d\n", ret);
 		goto err_free_irq;
 	}
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "probe core_init done\n");
 	ath11k_qmi_fwreset_from_cold_boot(ab);
 	return 0;
 

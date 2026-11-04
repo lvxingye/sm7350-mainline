@@ -21,6 +21,11 @@
 #define RDDM_DUMP_SIZE	0x420000
 #define MHI_CB_INVALID	0xff
 
+static bool skip_mhictrl_reset;
+module_param(skip_mhictrl_reset, bool, 0444);
+MODULE_PARM_DESC(skip_mhictrl_reset,
+		 "Skip the MHICTRL reset write for bring-up debugging");
+
 static const struct mhi_channel_config ath11k_mhi_channels_qca6390[] = {
 	{
 		.num = 20,
@@ -158,9 +163,17 @@ void ath11k_mhi_set_mhictrl_reset(struct ath11k_base *ab)
 	/* After SOC_GLOBAL_RESET, MHISTATUS may still have SYSERR bit set
 	 * and thus need to set MHICTRL_RESET to clear SYSERR.
 	 */
+	if (skip_mhictrl_reset) {
+		ath11k_dbg(ab, ATH11K_DBG_PCI, "mhi reset write skipped\n");
+		return;
+	}
+
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "mhi reset write begin\n");
 	ath11k_pcic_write32(ab, MHICTRL, MHICTRL_RESET_MASK);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "mhi reset write done\n");
 
 	mdelay(10);
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "mhi reset wait done\n");
 }
 
 static void ath11k_mhi_reset_txvecdb(struct ath11k_base *ab)

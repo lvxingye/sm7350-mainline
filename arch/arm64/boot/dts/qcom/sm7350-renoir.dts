@@ -7,9 +7,13 @@
 
 /dts-v1/;
 
+#include <dt-bindings/clock/qcom,gpucc-sm8350.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/iio/qcom,spmi-adc7-pm8350b.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+#include <dt-bindings/power/qcom-rpmpd.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
 
 #include "sm7350.dtsi"
@@ -60,6 +64,13 @@
 			gpios = <&pm8350_gpios 6 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_VOLUMEUP>;
 		};
+	};
+
+	renoir_battery: battery {
+		compatible = "xiaomi,renoir-battery";
+		io-channels = <&pmk8350_vadc PM8350B_ADC7_VBAT_SNS>;
+		io-channel-names = "voltage";
+		status = "okay";
 	};
 
 	vreg_pcie_3v3: regulator-pcie-3v3 {
@@ -162,15 +173,15 @@
 
 		vreg_s11b_1p9: smps11 {
 			regulator-name = "vreg_s11b_1p9";
-			regulator-min-microvolt = <1700000>;
-			regulator-max-microvolt = <2040000>;
+			regulator-min-microvolt = <1880000>;
+			regulator-max-microvolt = <1880000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
 		vreg_s12b_1p25: smps12 {
 			regulator-name = "vreg_s12b_1p25";
-			regulator-min-microvolt = <382000>;
-			regulator-max-microvolt = <1654000>;
+			regulator-min-microvolt = <1350000>;
+			regulator-max-microvolt = <1354000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
@@ -224,8 +235,8 @@
 
 		vreg_s2c_0p95: smps2 {
 			regulator-name = "vreg_s2c_0p95";
-			regulator-min-microvolt = <550000>;
-			regulator-max-microvolt = <950000>;
+			regulator-min-microvolt = <948000>;
+			regulator-max-microvolt = <948000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
@@ -259,8 +270,8 @@
 
 		vreg_l11c_2p8: ldo11 {
 			regulator-name = "vreg_l11c_2p8";
-			regulator-min-microvolt = <1650000>;
-			regulator-max-microvolt = <3544000>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_LPM>;
 		};
 	};
@@ -294,6 +305,14 @@
 	};
 };
 
+&pmk8350_vadc {
+	channel@38f {
+		reg = <PM8350B_ADC7_VBAT_SNS>;
+		label = "pm8350b_vbat_sns";
+		qcom,pre-scaling = <1 3>;
+	};
+};
+
 &uart5 {
 	status = "okay";
 };
@@ -307,6 +326,7 @@
 
 	vdda-supply = <&vreg_l10c_0p88>;
 	vddpe-3v3-supply = <&vreg_pcie_3v3>;
+	msi-parent = <&pcie0_msi>;
 
 	status = "okay";
 };
@@ -372,4 +392,202 @@
 	vdda18-supply = <&vreg_l1c_1p8>;
 	vdda33-supply = <&vreg_l2b_3p072>;
 	status = "okay";
+};
+
+/*
+ * GPU bring-up for the Adreno 642.  SM7350 uses the same GPU/GMU register
+ * layout as SM8350's A660, but with a different chip-id (0x06060010) and a
+ * lower maximum clock.  The GPUCC block and the GPU SMMU are register
+ * compatible with the SM8350 variants, so use those drivers and give the
+ * A642 its own catalog entry in the MSM driver.
+ */
+&soc {
+	/*
+	 * Qualcomm's PCIe MSI doorbell.  The Synopsis DWC MSI termination
+	 * window is not wired up on Shima; the vendor firmware routes PCIe
+	 * MSI writes to this doorbell instead, which raises GIC SPIs
+	 * 768..799.
+	 */
+	pcie0_msi: msi-controller@17a10040 {
+		compatible = "qcom,pci-msi";
+		reg = <0x0 0x17a10040 0x0 0x1000>;
+		msi-controller;
+		#msi-cells = <0>;
+		interrupt-parent = <&intc>;
+		interrupts = <GIC_SPI 768 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 769 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 770 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 771 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 772 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 773 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 774 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 775 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 776 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 777 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 778 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 779 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 780 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 781 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 782 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 783 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 784 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 785 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 786 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 787 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 788 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 789 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 790 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 791 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 792 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 793 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 794 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 795 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 796 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 797 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 798 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 799 IRQ_TYPE_EDGE_RISING>;
+	};
+
+	gpucc: clock-controller@3d90000 {
+		compatible = "qcom,sm8350-gpucc";
+		reg = <0x0 0x03d90000 0x0 0x9000>;
+		clocks = <&rpmhcc RPMH_CXO_CLK>,
+			 <&gcc GCC_GPU_GPLL0_CLK_SRC>,
+			 <&gcc GCC_GPU_GPLL0_DIV_CLK_SRC>;
+		clock-names = "bi_tcxo",
+			      "gcc_gpu_gpll0_clk_src",
+			      "gcc_gpu_gpll0_div_clk_src";
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+		#power-domain-cells = <1>;
+	};
+
+	adreno_smmu: iommu@3da0000 {
+		compatible = "qcom,sm8350-smmu-500", "qcom,adreno-smmu",
+			     "qcom,smmu-500", "arm,mmu-500";
+		reg = <0x0 0x03da0000 0x0 0x20000>;
+		#iommu-cells = <2>;
+		#global-interrupts = <2>;
+		interrupts = <GIC_SPI 673 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 675 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 678 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 679 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 680 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 681 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 682 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 683 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 684 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 685 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 686 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 687 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+			 <&gcc GCC_GPU_SNOC_DVM_GFX_CLK>,
+			 <&gpucc GPU_CC_AHB_CLK>,
+			 <&gpucc GPU_CC_HLOS1_VOTE_GPU_SMMU_CLK>,
+			 <&gpucc GPU_CC_CX_GMU_CLK>,
+			 <&gpucc GPU_CC_HUB_CX_INT_CLK>,
+			 <&gpucc GPU_CC_HUB_AON_CLK>;
+		clock-names = "bus", "iface", "ahb",
+			      "hlos1_vote_gpu_smmu", "cx_gmu",
+			      "hub_cx_int", "hub_aon";
+		power-domains = <&gpucc GPU_CX_GDSC>;
+		dma-coherent;
+	};
+
+	gpu: gpu@3d00000 {
+		compatible = "qcom,adreno-06060010", "qcom,adreno";
+		reg = <0x0 0x03d00000 0x0 0x40000>,
+		      <0x0 0x03d9e000 0x0 0x1000>,
+		      <0x0 0x03d61000 0x0 0x800>;
+		reg-names = "kgsl_3d0_reg_memory", "cx_mem", "cx_dbgc";
+		interrupts = <GIC_SPI 300 IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&adreno_smmu 0 0x400>,
+			 <&adreno_smmu 1 0x400>;
+		operating-points-v2 = <&gpu_opp_table>;
+		qcom,gmu = <&gmu>;
+		#cooling-cells = <2>;
+		status = "okay";
+
+		gpu_zap_shader: zap-shader {
+			memory-region = <&pil_gpu_micro_code_mem>;
+		};
+
+		gpu_opp_table: opp-table {
+			compatible = "operating-points-v2";
+
+			opp-747000000 {
+				opp-hz = /bits/ 64 <747000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+			};
+
+			opp-676000000 {
+				opp-hz = /bits/ 64 <676000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_NOM>;
+			};
+
+			opp-608000000 {
+				opp-hz = /bits/ 64 <608000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_SVS_L2>;
+			};
+
+			opp-540000000 {
+				opp-hz = /bits/ 64 <540000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+			};
+
+			opp-490000000 {
+				opp-hz = /bits/ 64 <490000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_SVS_L0>;
+			};
+
+			opp-443000000 {
+				opp-hz = /bits/ 64 <443000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_SVS>;
+			};
+
+			opp-365000000 {
+				opp-hz = /bits/ 64 <365000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS_L1>;
+			};
+
+			opp-285000000 {
+				opp-hz = /bits/ 64 <285000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+			};
+		};
+	};
+
+	gmu: gmu@3d6a000 {
+		compatible = "qcom,adreno-gmu-660.1", "qcom,adreno-gmu";
+		reg = <0x0 0x03d6a000 0x0 0x34000>,
+		      <0x0 0x03de0000 0x0 0x10000>,
+		      <0x0 0x0b290000 0x0 0x10000>;
+		reg-names = "gmu", "rscc", "gmu_pdc";
+		interrupts = <GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 305 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "hfi", "gmu";
+		clocks = <&gpucc GPU_CC_CX_GMU_CLK>,
+			 <&gpucc GPU_CC_CXO_CLK>,
+			 <&gcc GCC_DDRSS_GPU_AXI_CLK>,
+			 <&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+			 <&gpucc GPU_CC_AHB_CLK>,
+			 <&gpucc GPU_CC_HUB_CX_INT_CLK>,
+			 <&gpucc GPU_CC_HLOS1_VOTE_GPU_SMMU_CLK>;
+		clock-names = "gmu", "cxo", "axi", "memnoc", "ahb",
+			      "hub", "smmu_vote";
+		power-domains = <&gpucc GPU_CX_GDSC>,
+				<&gpucc GPU_GX_GDSC>;
+		power-domain-names = "cx", "gx";
+		iommus = <&adreno_smmu 5 0x400>;
+		operating-points-v2 = <&gmu_opp_table>;
+
+		gmu_opp_table: opp-table {
+			compatible = "operating-points-v2";
+
+			opp-200000000 {
+				opp-hz = /bits/ 64 <200000000>;
+				opp-level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+			};
+		};
+	};
 };
